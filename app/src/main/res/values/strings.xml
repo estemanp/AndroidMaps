@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">AndroidMaps</string>
+    <string name="title_activity_maps">Map</string>
+    <string name="title_type_map">Tipo de mapa</string>
+    <string name="latitude">Latitude:</string>
+    <string name="unknown">unknown</string>
+    <string name="longitute">Longitute:</string>
+    <string-array name="map_types_list">
+        <item>None</item>
+        <item>Normal</item>
+        <item>Satellite</item>
+        <item>Hybrid</item>
+        <item>Terrain</item>
+    </string-array>
+</resources>
