@@ -8,6 +8,8 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
 import android.provider.Settings;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
@@ -17,7 +19,10 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -32,12 +37,16 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.util.Locale;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, AdapterView.OnItemSelectedListener
-        , GoogleMap.OnMapClickListener {
+import static android.Manifest.permission.*;
 
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, AdapterView.OnItemSelectedListener
+        , GoogleMap.OnMapClickListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
+
+    public static final int REQUEST_LOCATION = 1;
     private GoogleMap mMap;
 
     private LocationManager mLocationManager;
+    //private MyLocationListener myLocationListener;
     private String provider;
 
 
@@ -52,6 +61,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private TextView latituteField;
     private TextView longitudeField;
+    private GoogleApiClient mGoogleApiClient;
+    private Location mLastLocation;
+    Marker currLocationMarker;
+
 
     public MapsActivity() {
     }
@@ -68,17 +81,37 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMapTypeSelector = (Spinner) findViewById(R.id.map_type_selector);
         mMapTypeSelector.setOnItemSelectedListener(this);
 
+        // Establecer punto de entrada para la API de ubicación
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API)
+                .enableAutoManage(this, this)
+                .build();
+
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+
+
         // Get the location manager
         mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        MyLocationListener myLocationListener = new MyLocationListener();
-        myLocationListener.setMapsActivity(this);
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        //myLocationListener = new MyLocationListener();
+       //myLocationListener.setMapsActivity(this);
+
+        boolean enabled = mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+        if (!enabled) {
+            Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+            startActivity(intent);
+        }
+
+        // default
+        Criteria criteria = new Criteria();
+        provider = mLocationManager.getBestProvider(criteria, false);
+        if (ActivityCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             // TODO: Consider calling
             //    ActivityCompat#requestPermissions
             // here to request the missing permissions, and then overriding
@@ -88,13 +121,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             // for ActivityCompat#requestPermissions for more details.
             return;
         }
-        mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, (android.location.LocationListener) myLocationListener);
-        //this.initializeLocation();
+        Location location = mLocationManager.getLastKnownLocation(provider);
+
+        if (location != null) {
+            System.out.println("Provider " + provider + " has been selected.");
+
+        } else {
+            latituteField.setText("Location not available");
+            longitudeField.setText("Location not available");
+        }
     }
 
     @Override
     protected void onStart() {
         super.onStart();
+        mGoogleApiClient.connect();
     }
 
     @Override
@@ -110,39 +151,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     protected void onStop() {
         super.onStop();
+        mGoogleApiClient.disconnect();
     }
 
-    /*
-    private void  initializeLocation(){
-
-        // Define the criteria how to select the locatioin provider -> use
-        // default
-        Criteria criteria = new Criteria();
-        provider = mLocationManager.getBestProvider(criteria, false);
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        Location location = mLocationManager.getLastKnownLocation(provider);
-
-        // Initialize the location fields
-        if (location != null) {
-            System.out.println("Provider " + provider + " has been selected.");
-            onLocationChanged(location);
-        } else {
-            latituteField.setText("Location not available");
-            longitudeField.setText("Location not available");
-        }
-
-        mLocationManager.requestLocationUpdates(provider,2000,10, (android.location.LocationListener) this);
-    }
-*/
     /**
      * Manipulates the map once available.
      * This callback is triggered when the map is ready to be used.
@@ -226,6 +237,48 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             int lng = (int) (location.getLongitude());
             latituteField.setText(String.valueOf(lat));
             longitudeField.setText(String.valueOf(lng));
+        } else {
+            Toast.makeText(this, "Ubicación no encontrada", Toast.LENGTH_LONG).show();
         }
+    }
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        if (ActivityCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    ACCESS_FINE_LOCATION)) {
+                // Aquí muestras confirmación explicativa al usuario
+                // por si rechazó los permisos anteriormente
+            } else {
+                ActivityCompat.requestPermissions(this, new String[]{ACCESS_FINE_LOCATION},REQUEST_LOCATION);
+            }
+        } else {
+            mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+            updateLocation(mLastLocation);
+            MarkerOptions markerOptions = new MarkerOptions();
+            LatLng position = new LatLng(mLastLocation.getLatitude(), mLastLocation.getLongitude());
+            markerOptions.position(position);
+            markerOptions.title("Actual Posicion");
+            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_MAGENTA));
+            currLocationMarker = mMap.addMarker(markerOptions);
+        }
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        Toast.makeText(this,"onConnectionSuspended",Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        Toast.makeText(this,"onConnectionFailed",Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        mLastLocation = location;
+        updateLocation(mLastLocation);
     }
 }

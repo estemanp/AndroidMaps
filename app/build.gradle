@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 24
-    buildToolsVersion "24.0.3"
+    buildToolsVersion '25.0.0'
     defaultConfig {
         applicationId "com.programacion.movil.estemanp.androidmaps"
         minSdkVersion 16
@@ -25,7 +25,7 @@ dependencies {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
     compile 'com.android.support:appcompat-v7:24.2.1'
-    compile 'com.google.android.gms:play-services:9.6.1'
-    compile 'com.google.android.gms:play-services-location:9.6.1'
+    compile 'com.google.android.gms:play-services:9.4.0'
+    compile 'com.google.android.gms:play-services-location:9.4.0'
     testCompile 'junit:junit:4.12'
 }
